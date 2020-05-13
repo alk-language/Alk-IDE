@@ -1,8 +1,8 @@
 # ALKA-47
 
-##ALKA-47 is an open source IDE for the alk programming language. ALKA-47 was made using the WxWidgets module for python(wxpython).
+## ALKA-47 is an open source IDE for the alk programming language. ALKA-47 was made using the WxWidgets module for python(wxpython).
 
-####Available features right now(crossed):
+#### Available features right now(crossed):
 - ~~syntax highlighting~~
 - ~~auto indentation~~
 - ~~file manager~~
@@ -12,3 +12,5 @@
 - debugger
 - code completion
 - themes
+
+## How to set up
