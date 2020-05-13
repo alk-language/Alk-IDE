@@ -1,6 +1,6 @@
 # ALKA-47
 
-![ALKA-47 image]()
+![ALKA-47 image](https://github.com/alk-language/Alk-IDE/blob/master/img.png)
 
 ## ALKA-47 is an open source IDE for the alk programming language. ALKA-47 was made using the WxWidgets module for python(wxpython).
 
