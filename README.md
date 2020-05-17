@@ -28,7 +28,7 @@ Next step you'll have to get the wxPython module. Just open your command prompt 
 
 `pip -install -U wxPython`
 
-Now you should be able to run ALKA-47.py scri[t directly using the PYTHON interpretor.
+Now you should be able to run ALKA-47.py script directly using the PYTHON interpretor.
 
 #### How to compile to executable
 
