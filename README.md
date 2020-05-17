@@ -16,3 +16,6 @@
 - themes
 
 ## How to set up
+
+#### Since ALKA-47 is still a work in-progress there are still no available executable to download, that means you will have to compile by yoursel
+or run directly the python script.
