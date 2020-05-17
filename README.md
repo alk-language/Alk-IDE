@@ -17,5 +17,13 @@
 
 ## How to set up
 
-#### Since ALKA-47 is still a work in-progress there are still no available executable to download, that means you will have to compile by yoursel
-or run directly the python script.
+#### Since ALKA-47 is still a work in-progress there are still no available executable to download, that means you will have to compile by yourself or run directly the python script.
+
+
+## (Windows/MacOS)
+
+First of all you have to install Python 3.x in your computer (recommended the latest version).  You can do that [here](https://www.python.org/downloads/).
+
+Next step you'll have to get the wxPython module. Just open your command prompt and type the command bellow:
+
+`pip -install -U wxPython`
