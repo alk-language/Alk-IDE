@@ -17,7 +17,7 @@
 
 ## How to set up
 
-#### Since ALKA-47 is still a work in-progress there are still no available executable to download, that means you will have to compile the code by yourself or run directly the python script.
+#### Since ALKA-47 is still a work in-progress there are still no available executable to download, that means you will have to compile the source code by yourself or run directly the python script.
 
 
 ## (Windows/MacOS)
