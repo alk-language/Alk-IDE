@@ -33,7 +33,7 @@ class Preferences(object):
     CHARS, \
     OPERATORS = range(9)
     def __init__(self):
-        self.PrefsPath = os.path.join(os.getcwd(), "Preferences") #calea catre fisierul json in care retin toate preferintele
+        self.PrefsPath = "" #calea catre fisierul json in care retin toate preferintele
         self.AlkSyntax = {
             "AlkCommentLine" : [],
             "AlkCommentArea" : [],
@@ -57,9 +57,12 @@ class Preferences(object):
             "SelectedAlkSetup" : -1, #ce index din AlkJarPathFiles am selectat
             "AlkJarPathFiles" : []
         }
+    def LoadPrefs(self):
         self.OpenAlkSetup()
         self.OpenAlkSyntaxPrefs()
         self.OpenViewSettingsPrefs() #incarc toate preferintele din fisierele json
+    def SetupCwd(self, path):
+        self.PrefsPath = os.path.join(path, "Preferences")
     def SaveAlkSyntaxPrefs(self):
         f = open(os.path.join(self.PrefsPath , "AlkSyntaxPrefs.json"), "w")
         json.dump(self.AlkSyntax, f, indent = True)
@@ -874,8 +877,10 @@ class FereastraPrincipala(wx.Frame):
         self.numeDirector, self.numeFisier = os.path.split(str(argv[0]))
         if len(self.numeDirector.split()) == 0:
             self.numeDirector = os.getcwd()
-        self.tmpDir = self.numeDirector + "\\tmp"
+        PREFERENCES.SetupCwd(self.numeDirector)
+        self.tmpDir = os.path.join(self.numeDirector, "tmp")
         self.markereErori = []
+        PREFERENCES.LoadPrefs()
         wx.Frame.__init__(self, parinte, title = titlu, size = (800, 600))
         self.panel = TopPanel(self)
         self.CodePart = self.panel.text.LiniiCod
