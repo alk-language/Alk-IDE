@@ -22,6 +22,8 @@
 
 ## (Windows/MacOS)
 
+Download ALKA-47(Windows) directory.
+
 First of all you have to install Python 3.x in your computer (recommended the latest version).  You can do that [here](https://www.python.org/downloads/).
 
 Next step you'll have to get the wxPython module. Just open your command prompt and type the command bellow:
