@@ -35,3 +35,10 @@ Now you should be able to run ALKA-47.py script directly using the PYTHON interp
 For that you will have to get pyinstaller with the following command in the command prompt:
 
 `pip install pyinstaller`
+
+Then go into your ALKA-47 folder and open command prompt there(or any other shell terminal) and add the following command:
+
+`pyinstaller -w --exclude _tkinter --exclude _ssl --exclude _sqlite3 --exclude tk85.dll --exclude tcl85.dll --exclude sqlite3.dll --exclude _testcapi --exclude _lzma --exclude _bz2 -i bitmaps\icon.ico ALKA-47.py`
+
+When compiled successfully copy `/bitmaps` , `/Preferences` and `/tmp` to `/dist/ALKA-47/` directory.
+Now the directory `/dist/Alka-47/` should contain the standalone application. You can now move it to any location you want.
