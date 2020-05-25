@@ -44,3 +44,13 @@ Then go into your ALKA-47 folder and open command prompt there(or any other shel
 
 When compiled successfully copy `/bitmaps` , `/Preferences` and `/tmp` to `/dist/ALKA-47/` directory.
 Now the directory `/dist/Alka-47/` should contain the standalone application. You can now move it to any location you want.
+
+## Linux
+Download ALKA-47(Linux) directory.
+Make sure that your Linux python version is >= 3.6 (type `python --version` in terminal).
+
+If not , type the following in the terminal:
+
+`sudo apt-get update && sudo apt-get upgrade`
+
+`sudo apt-get install python3.7`
