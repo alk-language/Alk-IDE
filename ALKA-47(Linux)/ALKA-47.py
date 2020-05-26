@@ -111,7 +111,7 @@ class KeywordLexer(object):
         EsteOperator = False
         while startPos < endPos:
             if buffer.UpdateCommAreas(startPos) is True and not CommLinie and not EsteString and not EsteChar:
-                buffer.StartStyling(startPos, 0x1f)
+                buffer.StartStyling(startPos)
                 buffer.SetStyling(1, PREFERENCES.COMMENT_AREA)
                 startPos += 1
                 continue
@@ -119,7 +119,7 @@ class KeywordLexer(object):
             
             if char.isspace() == False and char not in "()[}]{:;.,\\":
                 curWord += char
-                buffer.StartStyling(startPos, 0x1f)
+                buffer.StartStyling(startPos)
                 if char.isidentifier(): #daca am gasit vreo litera presupunem ca este un identificator
                     EsteIdentificator = True
                     if AreCifre:
@@ -142,7 +142,7 @@ class KeywordLexer(object):
                         curWord = char
 
                 if curWord == PREFERENCES.AlkSyntax["AlkCommentLine"][1] and not EsteChar: # am inceput comentariul
-                    buffer.StartStyling(max(0, startPos - len(curWord) + 1), 0x1f)
+                    buffer.StartStyling(max(0, startPos - len(curWord) + 1))
                     CommLinie = True
                     buffer.SetStyling(len(curWord), PREFERENCES.COMMENT_LINE)
                 elif char in PREFERENCES.AlkSyntax["AlkStrings"][1] and not CommLinie:
@@ -173,7 +173,7 @@ class KeywordLexer(object):
                 elif CommLinie:
                     buffer.SetStyling(1, PREFERENCES.COMMENT_LINE)
                 elif EsteIdentificator: # presupunem ca este identificator , verificam daca corespunde cu vreun element din sintaxa limbajului, daca nu , atunci este identificator
-                    buffer.StartStyling(max(0, startPos - len(curWord) + 1), 0x1f)
+                    buffer.StartStyling(max(0, startPos - len(curWord) + 1))
                     #print("da4")                    
                     if AreCifre:
                         #print("da5")
@@ -197,7 +197,7 @@ class KeywordLexer(object):
                     else:
                         buffer.SetStyling(len(curWord), PREFERENCES.NUMERIC)
             else:
-                buffer.StartStyling(startPos, 0x1f)
+                buffer.StartStyling(startPos)
                 if not EsteString and not CommLinie and not EsteChar:
                     buffer.SetStyling(1, PREFERENCES.DEFAULT_KEYWORDS)
                 elif EsteString and not CommLinie and not EsteChar:
