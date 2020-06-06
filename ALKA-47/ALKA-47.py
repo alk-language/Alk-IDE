@@ -16,6 +16,7 @@ GLOBAL_CMDS = []
 INPUT_CMD = None
 INPUT = ""
 INPUT_INDEX = -1
+WIN = False #imi dau seama daca rulez pe Windows sau nu / Linux/ MacOS
 class CommAreaPos:
     def __init__(self, begin = -1, end = -1):
         self.begin = begin
@@ -93,6 +94,11 @@ PREFERENCES = Preferences()
 class KeywordLexer(object):
     def __init__(self):
         super(KeywordLexer, self)
+    def StartStylingPlatform(self, buffer, startPos):
+        if WIN:
+            buffer.StartStyling(startPos, 31)
+        else:
+            buffer.StartStyling(startPos)
     def StyleText(self, event):
         buffer = event.EventObject
         lastStyled = buffer.GetEndStyled()
@@ -111,7 +117,7 @@ class KeywordLexer(object):
         EsteOperator = False
         while startPos < endPos:
             if buffer.UpdateCommAreas(startPos) is True and not CommLinie and not EsteString and not EsteChar:
-                buffer.StartStyling(startPos)
+                self.StartStylingPlatform(buffer, startPos)
                 buffer.SetStyling(1, PREFERENCES.COMMENT_AREA)
                 startPos += 1
                 continue
@@ -119,7 +125,7 @@ class KeywordLexer(object):
             
             if char.isspace() == False and char not in "()[}]{:;.,\\":
                 curWord += char
-                buffer.StartStyling(startPos)
+                self.StartStylingPlatform(buffer, startPos)
                 if char.isidentifier(): #daca am gasit vreo litera presupunem ca este un identificator
                     EsteIdentificator = True
                     if AreCifre:
@@ -142,7 +148,7 @@ class KeywordLexer(object):
                         curWord = char
 
                 if curWord == PREFERENCES.AlkSyntax["AlkCommentLine"][1] and not EsteChar: # am inceput comentariul
-                    buffer.StartStyling(max(0, startPos - len(curWord) + 1))
+                    self.StartStylingPlatform(buffer, max(0, startPos - len(curWord) + 1))
                     CommLinie = True
                     buffer.SetStyling(len(curWord), PREFERENCES.COMMENT_LINE)
                 elif char in PREFERENCES.AlkSyntax["AlkStrings"][1] and not CommLinie:
@@ -173,7 +179,7 @@ class KeywordLexer(object):
                 elif CommLinie:
                     buffer.SetStyling(1, PREFERENCES.COMMENT_LINE)
                 elif EsteIdentificator: # presupunem ca este identificator , verificam daca corespunde cu vreun element din sintaxa limbajului, daca nu , atunci este identificator
-                    buffer.StartStyling(max(0, startPos - len(curWord) + 1))
+                    self.StartStylingPlatform(buffer, max(0, startPos - len(curWord) + 1))
                     #print("da4")                    
                     if AreCifre:
                         #print("da5")
@@ -197,7 +203,7 @@ class KeywordLexer(object):
                     else:
                         buffer.SetStyling(len(curWord), PREFERENCES.NUMERIC)
             else:
-                buffer.StartStyling(startPos)
+                self.StartStylingPlatform(buffer, startPos)
                 if not EsteString and not CommLinie and not EsteChar:
                     buffer.SetStyling(1, PREFERENCES.DEFAULT_KEYWORDS)
                 elif EsteString and not CommLinie and not EsteChar:
@@ -1356,6 +1362,8 @@ class FereastraPrincipala(wx.Frame):
         
 
 def main(argv):
+    global WIN
+    WIN = os.name == "nt"
     opts, args = getopt.getopt(argv,"hi:o:",["ifile=","ofile="])
     aplicatie = wx.App()
     fereastra = FereastraPrincipala(None, "ALKA-47 v0.06", args)
