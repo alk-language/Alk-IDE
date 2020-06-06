@@ -22,8 +22,6 @@
 
 ## (Windows/MacOS)
 
-Download ALKA-47(Windows) directory.
-
 First of all you have to install Python 3.x in your computer (recommended the latest version).  You can do that [here](https://www.python.org/downloads/).
 
 Next step you'll have to get the wxPython module. Just open your command prompt and type the command bellow:
@@ -46,7 +44,7 @@ When compiled successfully copy `/bitmaps` , `/Preferences` and `/tmp` to `/dist
 Now the directory `/dist/Alka-47/` should contain the standalone application. You can now move it to any location you want.
 
 ## Linux
-Download ALKA-47(Linux) directory.
+
 Make sure that your Linux python version is >= 3.6 (type `python --version` in terminal).
 
 If not , type the following in the terminal:
