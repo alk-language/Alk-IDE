@@ -2,6 +2,7 @@ import wx
 import wx.adv
 import wx.lib.dialogs
 import wx.lib.scrolledpanel
+from wx.lib.splitter import MultiSplitterWindow
 import wx.stc as stc
 import subprocess
 from subprocess import Popen, PIPE
@@ -10,7 +11,10 @@ import re
 from functools import partial
 import sys, getopt
 import json
-
+import threading
+import time
+import queue
+import keyword
 
 GLOBAL_CMDS = []
 INPUT_CMD = None
@@ -22,6 +26,26 @@ class CommAreaPos:
         self.begin = begin
         self.end = end
 
+class AppThread(threading.Thread):
+    def __init__(self, parinte, cmd, console):
+        threading.Thread.__init__(self, daemon=True)
+        self.cmd = cmd
+        self.consoleRef = console
+        self.AppRunning = True
+        self.Parent = parinte
+        self.consoleRef.TextConsola.AppendText(cmd + '\n')
+    def run(self):
+        p = Popen(self.cmd, stdout = PIPE , stderr = subprocess.STDOUT, universal_newlines = True)
+        for line in iter(p.stdout.readline, ''):
+            line = line.rstrip()
+            self.consoleRef.TextConsola.AppendText(line + '\n')
+            if not self.AppRunning:
+                p.terminate()
+                break
+        self.AppRunning = False
+        self.Parent.ChangeRunStopBtn(False);
+        self.Parent.AppThr = None
+        del(self)
 
 class Preferences(object):
     COMMENT_LINE, \
@@ -174,30 +198,22 @@ class KeywordLexer(object):
                 elif EsteChar:
                     buffer.SetStyling(len(curWord), PREFERENCES.CHARS)
                 elif EsteString:
-                    #print("da2")
                     buffer.SetStyling(len(curWord), PREFERENCES.STRINGS)
                 elif CommLinie:
                     buffer.SetStyling(1, PREFERENCES.COMMENT_LINE)
                 elif EsteIdentificator: # presupunem ca este identificator , verificam daca corespunde cu vreun element din sintaxa limbajului, daca nu , atunci este identificator
                     self.StartStylingPlatform(buffer, max(0, startPos - len(curWord) + 1))
-                    #print("da4")                    
                     if AreCifre:
-                        #print("da5")
                         buffer.SetStyling(len(curWord), PREFERENCES.DEFAULT_KEYWORDS)
                     elif curWord in PREFERENCES.AlkSyntax["AlkKeywords"][1:]:
-                        #print("da6")
                         buffer.SetStyling(len(curWord), PREFERENCES.KEYWORDS)
                     elif curWord in PREFERENCES.AlkSyntax["AlkMethods"][1:]:
                         buffer.SetStyling(len(curWord), PREFERENCES.METHODS)
-                        #print("da7")
                     elif curWord in PREFERENCES.AlkSyntax["AlkNumeric"][1:]:
-                        #print("da8")
                         buffer.SetStyling(len(curWord), PREFERENCES.NUMERIC)
                     else:#atunci chiar este identificator
-                        #print("da9")
                         buffer.SetStyling(len(curWord), PREFERENCES.DEFAULT_KEYWORDS)
                 else:
-                    #print("da10")
                     if EsteOperator:
                         buffer.SetStyling(len(curWord), PREFERENCES.OPERATORS)
                     else:
@@ -227,6 +243,8 @@ class KeywordLexer(object):
             #prevChar = char
             startPos += 1
 
+
+
 class KeywordSTC(stc.StyledTextCtrl):
     def __init__(self, parent, style = wx.TE_MULTILINE | wx.TE_WORDWRAP | wx.TE_RICH | wx.NO_BORDER):
         super(KeywordSTC, self).__init__(parent, style = style)
@@ -238,6 +256,10 @@ class KeywordSTC(stc.StyledTextCtrl):
         self.Bind(stc.EVT_STC_STYLENEEDED, self.OnStyle)
         self.Bind(wx.EVT_KEY_UP, self.Intenteaza)
         self.Bind(wx.EVT_KEY_DOWN, self.IntenteazaEnter)
+        self.Bind(stc.EVT_STC_AUTOCOMP_SELECTION, self.RestartAutocomplete)
+        self.Bind(stc.EVT_STC_AUTOCOMP_CANCELLED, self.RestartAutocomplete)
+        self.typeSafe = False
+        self.charDelim = " ()+=<>[]{-}*&^%|.,\\/!:;"
     def UpdateCommAreas(self, poz):
         self.CommAreas = []
         v = self.GetValue()
@@ -272,15 +294,32 @@ class KeywordSTC(stc.StyledTextCtrl):
     def IntenteazaEnter(self, e):
         code = e.GetKeyCode()
         if code == 13:
+            self.AutoCompCancel()
             nrTabs = self.GetLineIndentation(self.GetCurrentLine()) / self.GetTabWidth()
             strin = "\n"
             while nrTabs > 0:
                 strin += '\t'
                 nrTabs -= 1
             self.AddText(strin)
+            self.currWord = ""
         else:
+            if code == 9:
+                self.typeSafe = True
+            elif not self.typeSafe and not e.ShiftDown() and not e.ControlDown():
+                Dlist = []
+                for i in PREFERENCES.AlkSyntax["AlkMethods"][1:]:
+                    Dlist.append(i)
+                for i in PREFERENCES.AlkSyntax["AlkKeywords"][1:]:
+                    Dlist.append(i)
+                Dlist.sort()
+                self.AutoCompSetIgnoreCase(False)
+                self.AutoCompShow(0, " ".join(Dlist))
+                self.typeSafe = True
+            if chr(code) in self.charDelim:
+                self.typeSafe = False
             e.Skip()
-
+    def RestartAutocomplete(self, e):
+        self.typeSafe = False
     def Intenteaza(self, e): #daca apas o tasta vreau sa verific ce tasta si daca este un  brackets sa le deschid
         char = chr(self.GetCharAt(self.GetCurrentPos() - 1))
         cheie = e.GetKeyCode()
@@ -549,8 +588,9 @@ class Consola(wx.Panel):
         else:
             e.Skip()
     def Scrie(self, e):
-        global INPUT
-        INPUT = self.TextConsola.GetValue()[21:]
+        if self.ApasatPeInput:
+            global INPUT
+            INPUT = self.TextConsola.GetValue()[21:]
     def Eroare(self, mesaj):
         self.TextConsola.SetDefaultStyle(wx.TextAttr(wx.RED,wx.BLACK,font = wx.Font(12, wx.MODERN, wx.NORMAL, wx.NORMAL, False, u'Lucida Console' ))) #culoarea textului
         self.TextConsola.AppendText(mesaj)
@@ -564,21 +604,20 @@ class Consola(wx.Panel):
         self.TextConsola.SetValue("")
         self.TextConsola.WriteText("Request user input: \n" + INPUT)
 
-class TopPanel(wx.Panel):
+class TopPanel(MultiSplitterWindow):
 
     def __init__(self, parent):
-        wx.Panel.__init__(self, parent)
-
-        main_sizer = wx.BoxSizer(wx.VERTICAL)
+        MultiSplitterWindow.__init__(self, parent, style = wx.SP_LIVE_UPDATE)
+        self.SetBackgroundColour((40, 70, 107))
         self.text = TextPanel(self)
         self.textTabs = TextTabs(self, self.text)
         self.text.InitTabRef(self.textTabs.tabs[0].GetWindow())
-        main_sizer.Add(self.textTabs, 0, wx.EXPAND)
-        main_sizer.Add(self.text, 2, wx.EXPAND)
         self.consola = Consola(self)
-        main_sizer.Add(self.consola, 1, wx.EXPAND)
-        self.SetSizer(main_sizer)
-
+        self.SetOrientation(wx.VERTICAL)
+        self.AppendWindow(self.textTabs, 25)
+        self.AppendWindow(self.text)
+        self.AppendWindow(self.consola)
+        self.SetSashPosition(1, 9999)
 #prin intermediul acestei clase am sa 'vizualizez' comenzile in ui
 class CommandUI(wx.Panel):
     def __init__(self, parent,CmdString):
@@ -648,6 +687,8 @@ class CmdDialog(wx.Dialog):
             self.AddCmdUI(inputString)
             self.CmdInput.SetValue("")
 
+
+        
 
 class AlkPathFileUI(wx.Panel):#fiecare segment din sectiunea de set up a path ului catre executabilul alk
 
@@ -886,6 +927,7 @@ class FereastraPrincipala(wx.Frame):
         PREFERENCES.SetupCwd(self.numeDirector)
         self.tmpDir = os.path.join(self.numeDirector, "tmp")
         self.markereErori = []
+        self.AppThr = None
         PREFERENCES.LoadPrefs()
         wx.Frame.__init__(self, parinte, title = titlu, size = (800, 600))
         self.panel = TopPanel(self)
@@ -900,25 +942,25 @@ class FereastraPrincipala(wx.Frame):
         self.CodePart.StyleSetSpec(PREFERENCES.STRINGS, "fore:" + PREFERENCES.AlkSyntax["AlkStrings"][0])
         self.CodePart.StyleSetSpec(PREFERENCES.COMMENT_AREA, "fore:" + PREFERENCES.AlkSyntax["AlkCommentArea"][0])
         self.CodePart.StyleSetSpec(PREFERENCES.CHARS, "fore:" + PREFERENCES.AlkSyntax["AlkChars"][0])
-        self.panel.consola.Hide()
+        #self.panel.consola.Hide()
         self.CreateStatusBar()
 
         self.toolBar = self.CreateToolBar(wx.NO_BORDER | wx.TB_FLAT | wx.TB_NODIVIDER)
         self.toolBar.SetBackgroundColour((50,80,110))
-        SaveFile = self.toolBar.AddTool(wx.ID_ANY, "Save File", wx.Bitmap(self.numeDirector +"/bitmaps/SaveFile.png"))
-        NewFile = self.toolBar.AddTool(wx.ID_ANY, "New File", wx.Bitmap(self.numeDirector +"/bitmaps/NewFile.png"))
-        OpenFile = self.toolBar.AddTool(wx.ID_ANY, "Open File", wx.Bitmap(self.numeDirector +"/bitmaps/OpenFile.png"))
+        SaveFile = self.toolBar.AddTool(wx.ID_ANY, "Save File", wx.Bitmap(self.numeDirector + "/bitmaps/SaveFile.png"))
+        NewFile = self.toolBar.AddTool(wx.ID_ANY, "New File", wx.Bitmap(self.numeDirector + "/bitmaps/NewFile.png"))
+        OpenFile = self.toolBar.AddTool(wx.ID_ANY, "Open File", wx.Bitmap(self.numeDirector + "/bitmaps/OpenFile.png"))
         self.toolBar.AddSeparator()
         Undo = self.toolBar.AddTool(wx.ID_UNDO, "Undo", wx.Bitmap(self.numeDirector +"/bitmaps/Undo.png"))
         Redo = self.toolBar.AddTool(wx.ID_REDO, "Redo", wx.Bitmap(self.numeDirector +"/bitmaps/Redo.png"))
         self.toolBar.AddSeparator()
         ShowConsole = self.toolBar.AddTool(wx.ID_ANY, "Toggle Console On/Off", wx.Bitmap(self.numeDirector +"/bitmaps/ShowConsole.png"))
         CloseConsole = self.toolBar.AddTool(wx.ID_ANY, "Toggle Console On/Off", wx.Bitmap(self.numeDirector +"/bitmaps/CloseConsole.png"))
-        Run = self.toolBar.AddTool(wx.ID_EXECUTE, "Run program", wx.Bitmap(self.numeDirector +"/bitmaps/Run.png"))
+        self.Run = self.toolBar.AddTool(wx.ID_EXECUTE, "Run program", wx.Bitmap(self.numeDirector +"/bitmaps/Run.png"))
         CmdList = self.toolBar.AddTool(wx.ID_ANY, "Open commands list", wx.Bitmap(self.numeDirector +"/bitmaps/Cmd.png"))
         self.toolBar.Realize()
         self.Bind(wx.EVT_TOOL, self.OpenCmdMenu, CmdList)
-        self.Bind(wx.EVT_TOOL, self.RuleazaProgramul, Run)
+        self.Bind(wx.EVT_TOOL, self.RuleazaProgramul, self.Run)
         self.Bind(wx.EVT_TOOL, lambda event: self.DeschideConsola(True), ShowConsole)
         self.Bind(wx.EVT_TOOL, lambda event: self.InchideConsola(), CloseConsole)
         self.Bind(wx.EVT_TOOL, self.FaUndo, Undo)
@@ -1020,7 +1062,7 @@ class FereastraPrincipala(wx.Frame):
         info = wx.adv.AboutDialogInfo()
         info.SetIcon(wx.Icon('bitmaps/IDE_icon.png', wx.BITMAP_TYPE_PNG))
         info.SetName("ALKA-47")
-        info.SetVersion("v0.06")
+        info.SetVersion("v0.07")
         info.SetDescription("ALKA-47 is an IDE specially designed for the Alk programming language.\nFor now supports file management, multiple projects handler,\n syntax highlighting, auto identation and much more.")
         info.SetCopyright("(C) 2020 - 2021 Bodgan Inculeț")   
         info.SetWebSite("https://github.com/alk-language/Alk-IDE")
@@ -1190,10 +1232,25 @@ class FereastraPrincipala(wx.Frame):
         c = ReplaceDialog(self, self.CodePart)
         c.ShowModal()
         c.Destroy()
+    def ChangeRunStopBtn(self, value):
+        if value:
+            self.Run.SetNormalBitmap(wx.Bitmap(self.numeDirector + "/bitmaps/Stop.png", wx.BITMAP_TYPE_PNG)) #schimb sprite ul butonulu de redare cu unul de stop
+            self.toolBar.Refresh()
+            self.toolBar.Realize()
+        else:
+            self.Run.SetNormalBitmap(wx.Bitmap(self.numeDirector + "/bitmaps/Run.png", wx.BITMAP_TYPE_PNG))
+            self.toolBar.Refresh()
+            self.toolBar.Realize()
     def SelectAll(self, e):
         self.CodePart.SelectAll()
     def RuleazaProgramul(self, e):
         if len(self.panel.textTabs.tabs) == 0:
+            return
+        if self.AppThr is None: # daca aplicatia nu ruleaza deja
+            self.ChangeRunStopBtn(True)
+        else: #dacaa programul deja ruleaza atunci il opreste
+            self.AppThr.AppRunning = False
+            self.AppThr = None
             return
         if PREFERENCES.AlkSetup["SelectedAlkSetup"] > -1: #daca am vreun fisier alk localizat
             self.DeschideConsola(False)
@@ -1219,7 +1276,7 @@ class FereastraPrincipala(wx.Frame):
                         GLOBAL_CMDS.remove(INPUT_CMD)
                         INPUT_CMD = None
             self.panel.consola.TextConsola.SetValue("")
-            self.panel.consola.TextConsola.AppendText("Using jarfile with path: " + PREFERENCES.AlkSetup["AlkJarPathFiles"][PREFERENCES.AlkSetup["SelectedAlkSetup"]] + '\n')
+            #self.panel.consola.TextConsola.AppendText("Using jarfile with path: " + PREFERENCES.AlkSetup["AlkJarPathFiles"][PREFERENCES.AlkSetup["SelectedAlkSetup"]] + '\n')
         else:
             setup = AlkSetupDialog(self)
             setup.ShowModal()
@@ -1234,49 +1291,28 @@ class FereastraPrincipala(wx.Frame):
         f = open(CaleProiect, "w")
         f.write(self.CodePart.GetValue())
         f.close()
+        #de aici prelucrez un subprocess
         cmd = "java -jar " + PREFERENCES.AlkSetup["AlkJarPathFiles"][PREFERENCES.AlkSetup["SelectedAlkSetup"]] + " -a " + CaleProiect
         if len(GLOBAL_CMDS) > 0:
             for i in GLOBAL_CMDS:
                 cmd += ' ' + i
-        p = Popen(cmd, stdout = PIPE , stderr = PIPE, universal_newlines = True, shell = True)
-
-        for line in iter(p.stdout.readline,''):
-            line = line.rstrip()
-            self.panel.consola.TextConsola.AppendText(line + '\n')
-            #if self.panel.consola.TextConsola.GetNumberOfLines() == 300: # golesc consola
-                #self.panel.consola.TextConsola.SetValue("")
-        pos = self.panel.consola.TextConsola.GetInsertionPoint() # sterg ultima linie ca mi da un endline in plus
-        self.panel.consola.TextConsola.Remove(pos - 1 , pos)
-        errors = p.communicate()[1]
-        returnCode = p.returncode
-        if len(errors) > 0 :   # adica daca am vreo eroare
-            linie = errors.find("line")
-            if linie > -1:
-                linieEroare = list(map(int, re.findall(r'\d+', errors)))  # iau numarul liniei la care se afla eroarea
-                self.markereErori.append(self.CodePart.MarkerAdd(linieEroare[0] - 1,1)) #pun un marker pe linia aia
-            self.panel.consola.Eroare(errors + '\n')
-        else:
-            #sir = self.LiniiCod.GetValue()
-            #i = self.LiniiCod.GetCurrentPos()
-            #print(sir[i])
-            if len(self.markereErori) > 0:
-                for i in self.markereErori:
-                    self.CodePart.MarkerDeleteHandle(i)
-                self.markereErori.clear()
-            self.StatusBar.SetStatusText("", 0)
-        self.panel.consola.TextConsola.AppendText('\n' + "Execution ended with return code " + str(returnCode) + ".\n")
-     
+        self.AppThr = AppThread(self, cmd, self.panel.consola)
+        self.AppThr.start()
     def DeschideConsola(self, e):
-        self.panel.consola.Show()
+        self.panel.SetSashPosition(1, 200)
         self.panel.Layout()
         if e is True:
             self.panel.consola.Input(e)
         else:
             self.panel.consola.TextConsola.SetEditable(False)
     def InchideConsola(self):
-        self.panel.consola.Hide()
+        self.panel.SetSashPosition(1, 9999)
         self.panel.consola.TextConsola.SetEditable(False)
         self.panel.Layout()
+        if not self.AppThr is None:
+            self.ChangeRunStopBtn(False)
+            self.AppThr.AppRunning = False
+            self.AppThr = None
     def DeschideFisier(self, e):
         try:
             casuta = wx.FileDialog(self, "Choose a file", self.numeDirector, "", "*.alk*", wx.FD_OPEN)
@@ -1366,7 +1402,7 @@ def main(argv):
     WIN = os.name == "nt"
     opts, args = getopt.getopt(argv,"hi:o:",["ifile=","ofile="])
     aplicatie = wx.App()
-    fereastra = FereastraPrincipala(None, "ALKA-47 v0.06", args)
+    fereastra = FereastraPrincipala(None, "ALKA-47 v0.07", args)
     aplicatie.MainLoop()
 if __name__ == "__main__":
     main(sys.argv)
